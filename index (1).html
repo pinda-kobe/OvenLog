@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLC Burner Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#eef2f7;--surface:#fff;--card:#fff;--card-alt:#f4f7fb;
+  --border:#dde4ee;--border-hi:#b8c8de;
+  --text:#1a2740;--text-2:#3d5068;--muted:#7a90a8;--dim:#a8bace;
+  --accent:#2563eb;--accent-bg:#eff4ff;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-ui:'Plus Jakarta Sans',sans-serif;
+  --sh-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --sh:0 4px 14px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-height:100vh;font-size:14px;}
+
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:var(--sh-sm);}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#dc2626,#ea6800);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(220,80,0,.25);flex-shrink:0;}
+.logo-title{font-weight:700;font-size:.93rem;color:var(--text);}
+.logo-sub{font-size:.62rem;color:var(--muted);font-family:var(--font-mono);letter-spacing:.5px;}
+.h-space{flex:1;}
+.last-upd{font-size:.68rem;color:var(--muted);font-family:var(--font-mono);background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:3px 9px;white-space:nowrap;}
+.data-badge{font-size:.68rem;font-family:var(--font-mono);background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:3px 9px;color:#15803d;font-weight:600;white-space:nowrap;}
+.btn-refresh{padding:6px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:.8rem;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.25);font-family:var(--font-ui);transition:all .15s;}
+.btn-refresh:hover{background:#1d4ed8;}
+.btn-refresh:disabled{background:#93c5fd;cursor:not-allowed;}
+
+.filter-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;}
+.filter-row{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);}
+.filter-row:last-child{border-bottom:none;}
+.fsep{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+.flabel{font-size:.67rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.7px;white-space:nowrap;}
+.fgroup{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.btn{padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:.76rem;font-family:var(--font-ui);font-weight:600;transition:all .15s;white-space:nowrap;}
+.btn:hover{background:var(--card-alt);border-color:var(--border-hi);color:var(--text);}
+.btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.28);}
+.bf-btn{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--card-alt);color:var(--text-2);cursor:pointer;font-size:.73rem;font-family:var(--font-ui);font-weight:700;transition:all .15s;}
+.bf-btn:hover{border-color:var(--border-hi);background:#e8eef8;}
+.bf-btn .bf-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.bf-btn.b1.active{background:#fef2f2;border-color:#fca5a5;color:#991b1b;}
+.bf-btn.b2.active{background:#fff7ed;border-color:#fdba74;color:#7c2d12;}
+.bf-btn.both.active{background:var(--accent-bg);border-color:#93c5fd;color:#1d4ed8;}
+
+.status-section{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 20px 8px;}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 18px;box-shadow:var(--sh-sm);position:relative;overflow:hidden;}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;}
+.sc.b1::after{background:linear-gradient(90deg,#dc2626,#ea6800);}
+.sc.b2::after{background:linear-gradient(90deg,#ea6800,#0891b2);}
+.sc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}
+.sc-name{font-weight:700;font-size:.8rem;color:var(--text);}
+.sc-sub{font-size:.63rem;color:var(--muted);font-family:var(--font-mono);font-weight:400;margin-left:6px;}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:.72rem;font-weight:700;font-family:var(--font-mono);border:1.5px solid;transition:all .35s;}
+.pill.b1on{color:#dc2626;background:#fef2f2;border-color:#fca5a5;}
+.pill.b1off{color:#16a34a;background:#f0fdf4;border-color:#86efac;}
+.pill.b2on{color:#c2410c;background:#fff7ed;border-color:#fdba74;}
+.pill.b2off{color:#0e7490;background:#ecfeff;border-color:#67e8f9;}
+.pill-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.pill.b1on .pill-dot,.pill.b2on .pill-dot{animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}70%{box-shadow:0 0 0 6px rgba(220,38,38,0);}100%{box-shadow:0 0 0 0 rgba(220,38,38,0);}}
+.sc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.sc-stat-label{font-size:.61rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;}
+.sc-stat-val{font-size:.88rem;font-weight:700;font-family:var(--font-mono);color:var(--text);}
+.sc-stat-val.hi{color:var(--accent);}.sc-stat-val.sm{font-size:.72rem;}
+
+.legend-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:6px 20px 4px;}
+.lg{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 12px;box-shadow:var(--sh-sm);}
+.lg-title{font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding-right:8px;border-right:1px solid var(--border);}
+.li{display:flex;align-items:center;gap:5px;font-size:.68rem;color:var(--text-2);font-weight:600;}
+.li-line{width:22px;height:3px;border-radius:2px;flex-shrink:0;}
+.li-dash{width:22px;height:0;border-top:2px dashed;opacity:.75;flex-shrink:0;}
+
+.date-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:8px 20px 0;padding:0;overflow:hidden;box-shadow:var(--sh-sm);}
+.dp-presets{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 14px;background:var(--card-alt);border-bottom:1px solid var(--border);}
+.dp-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);white-space:nowrap;margin-right:4px;}
+.dpb{padding:4px 11px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:.72rem;font-family:var(--font-mono);font-weight:600;transition:all .15s;white-space:nowrap;}
+.dpb:hover{background:#e8eef8;border-color:var(--border-hi);}
+.dpb.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.dp-count{margin-left:auto;font-size:.67rem;font-family:var(--font-mono);color:var(--accent);background:var(--accent-bg);border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;white-space:nowrap;}
+.dp-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;}
+.dp-range-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);}
+.date-input-wrap{position:relative;display:flex;align-items:center;}
+.date-input-wrap svg{position:absolute;left:8px;pointer-events:none;color:var(--muted);}
+input[type="date"]{padding:5px 8px 5px 28px;border-radius:7px;border:1px solid var(--border);background:var(--card-alt);color:var(--text);font-size:.73rem;font-family:var(--font-mono);outline:none;cursor:pointer;transition:border-color .2s;min-width:140px;}
+input[type="date"]:focus{border-color:var(--accent);}
+.dp-arrow{font-size:.9rem;color:var(--dim);}
+.dp-apply{padding:5px 13px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:.73rem;font-family:var(--font-ui);cursor:pointer;transition:all .15s;}
+.dp-apply:hover{background:#1d4ed8;}
+.dp-reset{padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:.73rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;}
+.dp-reset:hover{background:var(--card-alt);}
+.dp-info{display:flex;align-items:center;gap:6px;font-size:.67rem;font-family:var(--font-mono);color:var(--muted);}
+.dp-info-range{color:var(--text-2);font-weight:600;}
+
+.zoom-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:8px 20px 8px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:var(--sh-sm);}
+.zoom-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);white-space:nowrap;}
+.zoom-btns{display:flex;align-items:center;gap:4px;}
+.zoom-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--card-alt);color:var(--text-2);cursor:pointer;font-size:1.1rem;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.zoom-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+.zoom-btn:disabled{opacity:.3;cursor:not-allowed;}
+.zoom-count{font-size:.72rem;font-family:var(--font-mono);font-weight:600;color:var(--text-2);background:var(--card-alt);border:1px solid var(--border);border-radius:6px;padding:3px 10px;min-width:72px;text-align:center;white-space:nowrap;}
+.zoom-presets{display:flex;gap:3px;}
+.zp{padding:3px 9px;border-radius:6px;border:1px solid var(--border);background:var(--card-alt);color:var(--text-2);cursor:pointer;font-size:.7rem;font-family:var(--font-mono);font-weight:600;transition:all .15s;}
+.zp:hover{background:#e8eef8;border-color:var(--border-hi);}
+.zp.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.zoom-sep{width:1px;height:24px;background:var(--border);}
+.slider-wrap{flex:1;min-width:160px;display:flex;flex-direction:column;gap:5px;}
+.slider-ends{display:flex;justify-content:space-between;}
+.sl-end{font-size:.62rem;color:var(--muted);font-family:var(--font-mono);max-width:48%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer;background:linear-gradient(to right,var(--accent) var(--pct,0%),#dde4ee var(--pct,0%));}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 1px 5px rgba(37,99,235,.4);cursor:pointer;transition:transform .15s;}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.2);}
+input[type="range"]:disabled{opacity:.3;cursor:not-allowed;}
+.sl-info{font-size:.64rem;font-family:var(--font-mono);color:var(--accent);font-weight:600;text-align:center;}
+
+.charts-wrap{padding:4px 20px 20px;}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--sh-sm);margin-bottom:12px;}
+.chart-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.chart-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.chart-ico.t{background:#fff1f0;}.chart-ico.h{background:#eff8ff;}
+.chart-ttl{font-weight:700;font-size:.87rem;color:var(--text);line-height:1.3;}
+.chart-sub{font-size:.65rem;color:var(--muted);font-family:var(--font-mono);margin-top:1px;}
+.chart-badges{margin-left:auto;display:flex;gap:14px;}
+.cbadge{text-align:right;}
+.cbadge-label{font-size:.59rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;}
+.cbadge-val{font-size:.77rem;font-weight:700;font-family:var(--font-mono);color:var(--text-2);}
+.chart-canvas-wrap{position:relative;height:275px;}
+
+.footer-bar{background:var(--surface);border-top:1px solid var(--border);padding:7px 20px;display:flex;gap:18px;flex-wrap:wrap;font-size:.67rem;color:var(--muted);font-family:var(--font-mono);}
+.footer-bar span{white-space:nowrap;}
+
+.overlay{position:fixed;inset:0;background:rgba(238,242,247,.82);display:flex;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(6px);}
+.overlay-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 36px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:var(--sh);}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.overlay-txt{font-size:.75rem;color:var(--muted);font-family:var(--font-mono);font-weight:600;letter-spacing:1px;}
+.hidden{display:none!important;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:220px;color:var(--muted);}
+.es-icon{font-size:2.5rem;opacity:.35;}
+.es-txt{font-size:.8rem;font-family:var(--font-mono);}
+.es-hint{font-size:.72rem;color:var(--dim);text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-icon">🔥</div>
+  <div>
+    <div class="logo-title">PLC Burner Monitor</div>
+    <div class="logo-sub">PT KOBE BOGA UTAMA — BOJONEGORO PLANT</div>
+  </div>
+  <div class="h-space"></div>
+  <span class="last-upd" id="lastUpd">Belum dimuat</span>
+  <span class="data-badge hidden" id="dataBadge">—</span>
+  <button class="btn-refresh" id="btnRefresh" onclick="fetchData()">⟳ Refresh Data</button>
+</div>
+
+<div class="filter-bar">
+  <div class="filter-row">
+    <div class="fgroup">
+      <span class="flabel">Chart:</span>
+      <button class="btn active" id="btnBoth" onclick="setType('both')">Suhu &amp; Humidity</button>
+      <button class="btn" id="btnTemp" onclick="setType('temp')">Suhu</button>
+      <button class="btn" id="btnHum"  onclick="setType('hum')">Humidity</button>
+    </div>
+    <div class="fsep"></div>
+    <div class="fgroup">
+      <span class="flabel">Burner:</span>
+      <button class="bf-btn both active" id="bfBoth" onclick="setBurner('both')">
+        <span class="bf-dot" style="background:linear-gradient(135deg,#dc2626,#0891b2);"></span>Keduanya
+      </button>
+      <button class="bf-btn b1" id="bfB1" onclick="setBurner('b1')">
+        <span class="bf-dot" style="background:#dc2626;"></span>Burner 1
+      </button>
+      <button class="bf-btn b2" id="bfB2" onclick="setBurner('b2')">
+        <span class="bf-dot" style="background:#ea6800;"></span>Burner 2
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="status-section" id="statusSection">
+  <div class="sc b1" id="scB1">
+    <div class="sc-top">
+      <div class="sc-name">🔥 Burner 1 <span class="sc-sub">HEAT-1 D50 · Y5</span></div>
+      <span class="pill b1off" id="b1pill"><span class="pill-dot"></span><span id="b1txt">—</span></span>
+    </div>
+    <div class="sc-stats">
+      <div><div class="sc-stat-label">Suhu Terakhir</div><div class="sc-stat-val hi" id="b1tempNow">—</div></div>
+      <div><div class="sc-stat-label">Avg Suhu</div><div class="sc-stat-val" id="b1tempAvg">—</div></div>
+      <div><div class="sc-stat-label">Avg Humidity</div><div class="sc-stat-val" id="b1humAvg">—</div></div>
+      <div><div class="sc-stat-label">Batas ↑ / ↓</div><div class="sc-stat-val sm" id="b1limits">—</div></div>
+    </div>
+  </div>
+  <div class="sc b2" id="scB2">
+    <div class="sc-top">
+      <div class="sc-name">🔥 Burner 2 <span class="sc-sub">HEAT-2 D55 · Y6</span></div>
+      <span class="pill b2off" id="b2pill"><span class="pill-dot"></span><span id="b2txt">—</span></span>
+    </div>
+    <div class="sc-stats">
+      <div><div class="sc-stat-label">Suhu Terakhir</div><div class="sc-stat-val hi" id="b2tempNow">—</div></div>
+      <div><div class="sc-stat-label">Avg Suhu</div><div class="sc-stat-val" id="b2tempAvg">—</div></div>
+      <div><div class="sc-stat-label">Avg Humidity</div><div class="sc-stat-val" id="b2humAvg">—</div></div>
+      <div><div class="sc-stat-label">Batas ↑ / ↓</div><div class="sc-stat-val sm" id="b2limits">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="legend-row">
+  <div class="lg">
+    <span class="lg-title">Burner 1</span>
+    <div class="li"><div class="li-line" style="background:#dc2626;"></div>ON (Nyala)</div>
+    <div class="li"><div class="li-line" style="background:#16a34a;"></div>OFF (Mati)</div>
+  </div>
+  <div class="lg">
+    <span class="lg-title">Burner 2</span>
+    <div class="li"><div class="li-line" style="background:#ea6800;"></div>ON (Nyala)</div>
+    <div class="li"><div class="li-line" style="background:#0891b2;"></div>OFF (Mati)</div>
+  </div>
+  <div class="lg">
+    <span class="lg-title">Referensi</span>
+    <div class="li"><div class="li-dash" style="border-color:#d97706;"></div>Avg B1</div>
+    <div class="li"><div class="li-dash" style="border-color:#2563eb;"></div>Avg B2</div>
+    <div class="li"><div class="li-dash" style="border-color:#dc2626;"></div>Batas Atas</div>
+    <div class="li"><div class="li-dash" style="border-color:#16a34a;"></div>Batas Bawah</div>
+  </div>
+</div>
+
+<div class="date-panel">
+  <div class="dp-presets">
+    <span class="dp-label">Filter Tanggal:</span>
+    <button class="dpb active" id="dpAll"   onclick="setDatePreset('all')">Semua</button>
+    <button class="dpb"        id="dpToday" onclick="setDatePreset('today')">Hari Ini</button>
+    <button class="dpb"        id="dpYest"  onclick="setDatePreset('yesterday')">Kemarin</button>
+    <button class="dpb"        id="dp7d"    onclick="setDatePreset('7d')">7 Hari</button>
+    <button class="dpb"        id="dp30d"   onclick="setDatePreset('30d')">30 Hari</button>
+    <span class="dp-count hidden" id="dpCount">—</span>
+  </div>
+  <div class="dp-range">
+    <span class="dp-range-label">Dari:</span>
+    <div class="date-input-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <input type="date" id="dpFrom" onchange="onDateInputChange()">
+    </div>
+    <span class="dp-arrow">→</span>
+    <span class="dp-range-label">Sampai:</span>
+    <div class="date-input-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <input type="date" id="dpTo" onchange="onDateInputChange()">
+    </div>
+    <button class="dp-apply" onclick="applyDateFilter()">Terapkan</button>
+    <button class="dp-reset" onclick="setDatePreset('all')">✕ Reset</button>
+    <div class="dp-info" style="margin-left:auto;">
+      <span class="dp-info-range" id="dpInfoTxt">—</span>
+    </div>
+  </div>
+</div>
+
+<div class="zoom-panel">
+  <span class="zoom-label">Zoom:</span>
+  <div class="zoom-btns">
+    <button class="zoom-btn" id="btnZoomIn"  onclick="zoom('in')"  title="Zoom In">+</button>
+    <span class="zoom-count" id="zoomCount">—</span>
+    <button class="zoom-btn" id="btnZoomOut" onclick="zoom('out')" title="Zoom Out">−</button>
+  </div>
+  <div class="zoom-presets">
+    <button class="zp" id="zp1h"  onclick="setZoomDur(60)">1 Jam</button>
+    <button class="zp" id="zp3h"  onclick="setZoomDur(180)">3 Jam</button>
+    <button class="zp" id="zp6h"  onclick="setZoomDur(360)">6 Jam</button>
+    <button class="zp" id="zp12h" onclick="setZoomDur(720)">12 Jam</button>
+    <button class="zp" id="zp24h" onclick="setZoomDur(1440)">24 Jam</button>
+    <button class="zp active" id="zpAll" onclick="setZoomAll()">Semua</button>
+  </div>
+  <div class="zoom-sep"></div>
+  <span class="zoom-label">Geser:</span>
+  <div class="slider-wrap">
+    <div class="slider-ends">
+      <span class="sl-end" id="slLeft">—</span>
+      <span class="sl-end" style="text-align:right;" id="slRight">—</span>
+    </div>
+    <input type="range" id="panSlider" min="0" value="0" step="1" oninput="onSlider(this)" disabled style="--pct:0%;">
+    <div class="sl-info" id="slInfo">—</div>
+  </div>
+</div>
+
+<div class="charts-wrap">
+  <div class="empty-state" id="emptyState">
+    <div class="es-icon">📡</div>
+    <div class="es-txt">Belum ada data</div>
+    <div class="es-hint">Tekan tombol <strong>⟳ Refresh Data</strong> untuk memuat data</div>
+  </div>
+  <div id="chartsInner" class="hidden">
+    <div class="chart-card" id="tempCard">
+      <div class="chart-head">
+        <div class="chart-ico t">🌡️</div>
+        <div>
+          <div class="chart-ttl">Suhu — <span id="tempCardTitle">Burner 1 &amp; Burner 2</span></div>
+          <div class="chart-sub">D50 &amp; D55 · Batas Atas/Bawah · Rata-rata</div>
+        </div>
+        <div class="chart-badges">
+          <div class="cbadge" id="b1TBadge"><div class="cbadge-label">B1 Min→Max</div><div class="cbadge-val" id="b1TRange">—</div></div>
+          <div class="cbadge" id="b2TBadge"><div class="cbadge-label">B2 Min→Max</div><div class="cbadge-val" id="b2TRange">—</div></div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="chartTemp"></canvas></div>
+    </div>
+    <div class="chart-card" id="humCard">
+      <div class="chart-head">
+        <div class="chart-ico h">💧</div>
+        <div>
+          <div class="chart-ttl">Humidity — <span id="humCardTitle">Burner 1 &amp; Burner 2</span></div>
+          <div class="chart-sub">D2000 &amp; D2002 · Rata-rata</div>
+        </div>
+        <div class="chart-badges">
+          <div class="cbadge" id="b1HBadge"><div class="cbadge-label">B1 Avg</div><div class="cbadge-val" id="b1HStat">—</div></div>
+          <div class="cbadge" id="b2HBadge"><div class="cbadge-label">B2 Avg</div><div class="cbadge-val" id="b2HStat">—</div></div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="chartHum"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer-bar">
+  <span id="footRows">Tekan Refresh untuk memuat data</span>
+  <span id="footRange"></span>
+  <span style="margin-left:auto;">Sheet: PLC | Data mulai baris 4 | PT Kobe Boga Utama</span>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-card">
+    <div class="spinner"></div>
+    <div class="overlay-txt" id="overlayTxt">MEMUAT DATA...</div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+var SHEET_ID   = '12KxEr97MkxZaF2FPkxUNtm0CT8GzXBMGu-EMjQwkP8Q';
+var SHEET_NAME = 'PLC';
+var AUTO_REFRESH_MS = 30000; // auto refresh 30 detik
+
+// ── STATE ───────────────────────────────────────────────────
+var S = {
+  allData:[],b1sAll:[],b2sAll:[],
+  filteredData:[],b1sFilt:[],b2sFilt:[],
+  viewStart:0,viewCount:0,
+  chartType:'both',burnerView:'both',
+  hasData:false,datePreset:'all',
+  dateFrom:null,dateTo:null
+};
+var CH = {temp:null,hum:null};
+var autoTimer = null;
+
+// ── UTILS ───────────────────────────────────────────────────
+function avg(a){if(!a||!a.length)return 0;return a.reduce(function(s,v){return s+v;},0)/a.length;}
+function f1(n){return (+n).toFixed(1);}
+function f2(n){return (+n).toFixed(2);}
+function loading(v){document.getElementById('overlay').classList.toggle('hidden',!v);}
+function segFn(arr,onC,offC){return function(ctx){return arr[ctx.p1DataIndex]==='ON'?onC:offC;};}
+function fmtDate(d){return d?d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}):'—';}
+function isoDate(d){var y=d.getFullYear(),m=d.getMonth()+1,dd=d.getDate();return y+'-'+(m<10?'0'+m:m)+'-'+(dd<10?'0'+dd:dd);}
+
+// ── FETCH via gviz ───────────────────────────────────────────
+function fetchData(){
+  loading(true);
+  document.getElementById('btnRefresh').disabled=true;
+  document.getElementById('overlayTxt').textContent='MEMUAT DATA...';
+
+  var url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+
+    '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME)+'&range=A4:L';
+
+  fetch(url)
+    .then(function(r){return r.text();})
+    .then(function(text){
+      var json=JSON.parse(text.substring(47,text.length-2));
+      var rows=json.table.rows||[];
+
+      S.allData=[];
+      for(var i=0;i<rows.length;i++){
+        var r=rows[i];
+        if(!r.c||!r.c[0]||!r.c[0].v) continue;
+        var v=r.c[0].v;
+        var ts;
+        if(typeof v==='string'&&v.startsWith('Date(')){
+          var p=v.slice(5,-1).split(',').map(Number);
+          ts=new Date(p[0],p[1],p[2],p[3]||0,p[4]||0,p[5]||0);
+        } else { ts=new Date(v); }
+        if(isNaN(ts.getTime())) continue;
+
+        // format label dd/MM HH:mm:ss
+        var dd=String(ts.getDate()).padStart(2,'0');
+        var mm=String(ts.getMonth()+1).padStart(2,'0');
+        var hh=String(ts.getHours()).padStart(2,'0');
+        var mi=String(ts.getMinutes()).padStart(2,'0');
+        var ss=String(ts.getSeconds()).padStart(2,'0');
+        var label=dd+'/'+mm+' '+hh+':'+mi+':'+ss;
+
+        S.allData.push({
+          ts:ts.getTime(),label:label,
+          b1_temp:  +((r.c[1]&&r.c[1].v)||0),
+          b1_status:String((r.c[2]&&r.c[2].v)||'').trim().toUpperCase(),
+          b1_upper: +((r.c[3]&&r.c[3].v)||0),
+          b1_lower: +((r.c[4]&&r.c[4].v)||0),
+          b1_hum:   +((r.c[5]&&r.c[5].v)||0),
+          b2_temp:  +((r.c[6]&&r.c[6].v)||0),
+          b2_status:String((r.c[7]&&r.c[7].v)||'').trim().toUpperCase(),
+          b2_upper: +((r.c[8]&&r.c[8].v)||0),
+          b2_lower: +((r.c[9]&&r.c[9].v)||0),
+          b2_hum:   +((r.c[10]&&r.c[10].v)||0),
+          combustion:+((r.c[11]&&r.c[11].v)||0)
+        });
+      }
+
+      S.b1sAll=S.allData.map(function(d){return d.b1_status;});
+      S.b2sAll=S.allData.map(function(d){return d.b2_status;});
+      S.hasData=S.allData.length>0;
+
+      onDataLoaded();
+    })
+    .catch(function(e){
+      loading(false);
+      document.getElementById('btnRefresh').disabled=false;
+      alert('Gagal memuat data:\n'+e.message);
+    });
+}
+
+function onDataLoaded(){
+  loading(false);
+  document.getElementById('btnRefresh').disabled=false;
+
+  if(!S.hasData){
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('chartsInner').classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('chartsInner').classList.remove('hidden');
+  document.getElementById('dataBadge').classList.remove('hidden');
+  document.getElementById('dataBadge').textContent=S.allData.length.toLocaleString('id-ID')+' baris dimuat';
+  document.getElementById('lastUpd').textContent='Dimuat: '+new Date().toLocaleTimeString('id-ID');
+  document.getElementById('footRows').textContent='Total data: '+S.allData.length+' baris';
+
+  if(S.allData.length){
+    document.getElementById('footRange').textContent=
+      S.allData[0].label+'  →  '+S.allData[S.allData.length-1].label;
+    var f=new Date(S.allData[0].ts),l=new Date(S.allData[S.allData.length-1].ts);
+    document.getElementById('dpFrom').min=isoDate(f);
+    document.getElementById('dpFrom').max=isoDate(l);
+    document.getElementById('dpTo').min=isoDate(f);
+    document.getElementById('dpTo').max=isoDate(l);
+  }
+
+  applyFilter();
+
+  // auto refresh
+  if(autoTimer) clearTimeout(autoTimer);
+  autoTimer=setTimeout(fetchData, AUTO_REFRESH_MS);
+}
+
+// ── DATE FILTER ──────────────────────────────────────────────
+var PRESET_IDS=['dpAll','dpToday','dpYest','dp7d','dp30d'];
+
+function setDatePreset(p){
+  S.datePreset=p;
+  PRESET_IDS.forEach(function(id){document.getElementById(id).classList.remove('active');});
+  var idMap={all:'dpAll',today:'dpToday',yesterday:'dpYest','7d':'dp7d','30d':'dp30d'};
+  if(idMap[p]) document.getElementById(idMap[p]).classList.add('active');
+
+  var now=new Date(),from,to;
+  if(p==='all'){
+    from=null;to=null;
+    document.getElementById('dpFrom').value='';
+    document.getElementById('dpTo').value='';
+  } else if(p==='today'){
+    from=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);
+    to=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
+    document.getElementById('dpFrom').value=isoDate(from);
+    document.getElementById('dpTo').value=isoDate(to);
+  } else if(p==='yesterday'){
+    var y=new Date(now);y.setDate(y.getDate()-1);
+    from=new Date(y.getFullYear(),y.getMonth(),y.getDate(),0,0,0,0);
+    to=new Date(y.getFullYear(),y.getMonth(),y.getDate(),23,59,59,999);
+    document.getElementById('dpFrom').value=isoDate(from);
+    document.getElementById('dpTo').value=isoDate(to);
+  } else if(p==='7d'){
+    from=new Date(now-7*24*3600e3);from.setHours(0,0,0,0);to=null;
+    document.getElementById('dpFrom').value=isoDate(from);
+    document.getElementById('dpTo').value='';
+  } else if(p==='30d'){
+    from=new Date(now-30*24*3600e3);from.setHours(0,0,0,0);to=null;
+    document.getElementById('dpFrom').value=isoDate(from);
+    document.getElementById('dpTo').value='';
+  }
+  S.dateFrom=from;S.dateTo=to;
+  applyFilter();
+}
+
+function onDateInputChange(){
+  PRESET_IDS.forEach(function(id){document.getElementById(id).classList.remove('active');});
+  S.datePreset='custom';
+}
+
+function applyDateFilter(){
+  var fv=document.getElementById('dpFrom').value;
+  var tv=document.getElementById('dpTo').value;
+  S.dateFrom=fv?new Date(fv+'T00:00:00'):null;
+  S.dateTo=tv?new Date(tv+'T23:59:59'):null;
+  PRESET_IDS.forEach(function(id){document.getElementById(id).classList.remove('active');});
+  applyFilter();
+}
+
+function applyFilter(){
+  if(!S.hasData) return;
+  if(!S.dateFrom&&!S.dateTo){
+    S.filteredData=S.allData;S.b1sFilt=S.b1sAll;S.b2sFilt=S.b2sAll;
+  } else {
+    var from=S.dateFrom?S.dateFrom.getTime():-Infinity;
+    var to=S.dateTo?S.dateTo.getTime():Infinity;
+    S.filteredData=[];S.b1sFilt=[];S.b2sFilt=[];
+    for(var i=0;i<S.allData.length;i++){
+      var ts=S.allData[i].ts;
+      if(ts>=from&&ts<=to){S.filteredData.push(S.allData[i]);S.b1sFilt.push(S.b1sAll[i]);S.b2sFilt.push(S.b2sAll[i]);}
+    }
+  }
+  var n=S.filteredData.length;
+  var cnt=document.getElementById('dpCount');
+  if(S.datePreset!=='all'||S.dateFrom||S.dateTo){cnt.classList.remove('hidden');cnt.textContent=n.toLocaleString('id-ID')+' baris';}
+  else{cnt.classList.add('hidden');}
+
+  var info=S.dateFrom||S.dateTo?
+    fmtDate(S.dateFrom||new Date(S.allData[0].ts))+' → '+fmtDate(S.dateTo||new Date())+' ('+n.toLocaleString('id-ID')+' baris)':
+    'Semua data ('+n.toLocaleString('id-ID')+' baris)';
+  document.getElementById('dpInfoTxt').textContent=info;
+
+  S.viewStart=0;S.viewCount=n;
+  setZoomAll();
+}
+
+// ── ZOOM ────────────────────────────────────────────────────
+var DUR_STEPS=[15,30,60,120,180,360,720,1440,2880,4320,7200,10080,43200];
+
+function viewDurationMinutes(){
+  if(!S.filteredData.length||S.viewCount<=1) return 0;
+  var s=S.filteredData[S.viewStart],e=S.filteredData[Math.min(S.viewStart+S.viewCount-1,S.filteredData.length-1)];
+  return(e.ts-s.ts)/60000;
+}
+
+function setZoomDur(minutes){
+  var data=S.filteredData,n=data.length;
+  if(!n) return;
+  var mid=S.viewStart+Math.floor(S.viewCount/2);
+  mid=Math.max(0,Math.min(mid,n-1));
+  var midTs=data[mid].ts,halfMs=(minutes*60000)/2;
+  var ns=mid,ne=mid;
+  while(ns>0&&midTs-data[ns].ts<halfMs) ns--;
+  while(ne<n-1&&data[ne].ts-midTs<halfMs) ne++;
+  S.viewStart=Math.max(0,ns);S.viewCount=Math.max(1,ne-S.viewStart+1);
+  clearZP();
+  var m={60:'zp1h',180:'zp3h',360:'zp6h',720:'zp12h',1440:'zp24h'};
+  if(m[minutes]) document.getElementById(m[minutes]).classList.add('active');
+  initSlider();renderView();
+}
+
+function setZoomAll(){
+  S.viewStart=0;S.viewCount=S.filteredData.length;
+  clearZP();document.getElementById('zpAll').classList.add('active');
+  initSlider();renderView();
+}
+
+function zoom(dir){
+  var n=S.filteredData.length;if(!n)return;
+  var curDur=viewDurationMinutes(),newDur=curDur;
+  if(dir==='in'){for(var i=DUR_STEPS.length-1;i>=0;i--){if(DUR_STEPS[i]<curDur){newDur=DUR_STEPS[i];break;}}if(newDur===curDur)newDur=Math.max(1,curDur/2);}
+  else{for(var j=0;j<DUR_STEPS.length;j++){if(DUR_STEPS[j]>curDur){newDur=DUR_STEPS[j];break;}}if(newDur===curDur)newDur=curDur*2;}
+  clearZP();setZoomDur(newDur);
+}
+
+function clearZP(){['zp1h','zp3h','zp6h','zp12h','zp24h','zpAll'].forEach(function(id){document.getElementById(id).classList.remove('active');});}
+
+// ── SLIDER ───────────────────────────────────────────────────
+function initSlider(){
+  var sl=document.getElementById('panSlider'),n=S.filteredData.length;
+  var mx=Math.max(0,n-S.viewCount);
+  sl.max=mx;sl.value=Math.min(S.viewStart,mx);sl.disabled=(mx<=0);
+  S.viewStart=parseInt(sl.value);
+  updateSliderPct(sl);updateSliderLabels();updateZoomUI();
+}
+
+function onSlider(el){
+  S.viewStart=parseInt(el.value);
+  updateSliderPct(el);updateSliderLabels();renderView();
+}
+
+function updateSliderPct(el){
+  var pct=(el.max>0)?(el.value/el.max*100):0;
+  el.style.setProperty('--pct',pct.toFixed(1)+'%');
+}
+
+function updateSliderLabels(){
+  var data=S.filteredData,n=data.length,s=S.viewStart;
+  var e=Math.min(s+S.viewCount-1,n-1);
+  if(!n){document.getElementById('slInfo').textContent='—';return;}
+  document.getElementById('slLeft').textContent=data[s]?data[s].label:'—';
+  document.getElementById('slRight').textContent=data[e]?data[e].label:'—';
+  var shown=e-s+1;
+  var durMin=(data[s]&&data[e])?Math.round((data[e].ts-data[s].ts)/60000):0;
+  var durStr=durMin>60?(Math.floor(durMin/60)+'j '+(durMin%60)+'m'):durMin+'m';
+  document.getElementById('slInfo').textContent=shown.toLocaleString('id-ID')+' titik · '+durStr;
+}
+
+function updateZoomUI(){
+  var n=S.filteredData.length;
+  document.getElementById('zoomCount').textContent=S.viewCount.toLocaleString('id-ID')+' titik';
+  document.getElementById('btnZoomIn').disabled=(S.viewCount<=2);
+  document.getElementById('btnZoomOut').disabled=(S.viewCount>=n);
+}
+
+// ── CONTROLS ─────────────────────────────────────────────────
+function setType(t){
+  S.chartType=t;
+  ['btnBoth','btnTemp','btnHum'].forEach(function(id){document.getElementById(id).classList.remove('active');});
+  document.getElementById(t==='both'?'btnBoth':t==='temp'?'btnTemp':'btnHum').classList.add('active');
+  document.getElementById('tempCard').style.display=(t==='hum')?'none':'';
+  document.getElementById('humCard').style.display=(t==='temp')?'none':'';
+}
+
+function setBurner(b){
+  S.burnerView=b;
+  ['bfBoth','bfB1','bfB2'].forEach(function(id){document.getElementById(id).classList.remove('active');});
+  document.getElementById(b==='both'?'bfBoth':b==='b1'?'bfB1':'bfB2').classList.add('active');
+  var t={both:'Burner 1 &amp; Burner 2',b1:'Burner 1',b2:'Burner 2'};
+  document.getElementById('tempCardTitle').innerHTML=t[b];
+  document.getElementById('humCardTitle').innerHTML=t[b];
+  var s1=(b!=='b2'),s2=(b!=='b1');
+  document.getElementById('scB1').style.display=s1?'':'none';
+  document.getElementById('scB2').style.display=s2?'':'none';
+  document.getElementById('b1TBadge').style.display=s1?'':'none';
+  document.getElementById('b2TBadge').style.display=s2?'':'none';
+  document.getElementById('b1HBadge').style.display=s1?'':'none';
+  document.getElementById('b2HBadge').style.display=s2?'':'none';
+  document.getElementById('statusSection').style.gridTemplateColumns=(b==='both')?'1fr 1fr':'1fr';
+  if(S.hasData) renderView();
+}
+
+// ── STATUS CARDS ─────────────────────────────────────────────
+function updateCards(view){
+  if(!view.length) return;
+  var last=view[view.length-1];
+  var b1on=last.b1_status==='ON';
+  document.getElementById('b1pill').className='pill '+(b1on?'b1on':'b1off');
+  document.getElementById('b1txt').textContent=last.b1_status||'—';
+  var b2on=last.b2_status==='ON';
+  document.getElementById('b2pill').className='pill '+(b2on?'b2on':'b2off');
+  document.getElementById('b2txt').textContent=last.b2_status||'—';
+  var b1T=view.map(function(d){return d.b1_temp;});
+  var b2T=view.map(function(d){return d.b2_temp;});
+  var b1H=view.map(function(d){return d.b1_hum;});
+  var b2H=view.map(function(d){return d.b2_hum;});
+  document.getElementById('b1tempNow').textContent=f1(last.b1_temp)+' °C';
+  document.getElementById('b2tempNow').textContent=f1(last.b2_temp)+' °C';
+  document.getElementById('b1tempAvg').textContent=f1(avg(b1T))+' °C';
+  document.getElementById('b2tempAvg').textContent=f1(avg(b2T))+' °C';
+  document.getElementById('b1humAvg').textContent=f2(avg(b1H));
+  document.getElementById('b2humAvg').textContent=f2(avg(b2H));
+  document.getElementById('b1limits').textContent='↑ '+last.b1_upper+' / ↓ '+last.b1_lower+' °C';
+  document.getElementById('b2limits').textContent='↑ '+last.b2_upper+' / ↓ '+last.b2_lower+' °C';
+}
+
+// ── ANNOTATIONS ──────────────────────────────────────────────
+var F={size:10,family:"'IBM Plex Mono',monospace"};
+var LB={display:true,font:F,padding:{x:5,y:3},borderRadius:4};
+function anLine(y,color,dash,lbl){return{type:'line',yMin:y,yMax:y,borderColor:color,borderWidth:1.5,borderDash:dash,label:Object.assign({},LB,lbl)};}
+function buildTempAnn(bv,aB1,aB2,uB1,lB1,uB2,lB2){
+  var a={};
+  if(bv!=='b2'){a.avgB1=anLine(aB1,'rgba(217,119,6,.9)',[7,4],{content:'Avg B1: '+f1(aB1)+'°C',position:'start',yAdjust:0,backgroundColor:'rgba(255,251,235,.95)',color:'#92400e'});if(uB1>0)a.uB1=anLine(uB1,'rgba(220,38,38,.5)',[4,4],{content:'B1↑ '+f1(uB1)+'°C',position:'end',backgroundColor:'rgba(254,226,226,.95)',color:'#991b1b'});if(lB1>0)a.lB1=anLine(lB1,'rgba(22,163,74,.5)',[4,4],{content:'B1↓ '+f1(lB1)+'°C',position:'end',yAdjust:16,backgroundColor:'rgba(220,252,231,.95)',color:'#14532d'});}
+  if(bv!=='b1'){a.avgB2=anLine(aB2,'rgba(37,99,235,.9)',[7,4],{content:'Avg B2: '+f1(aB2)+'°C',position:'start',yAdjust:20,backgroundColor:'rgba(239,246,255,.95)',color:'#1e40af'});if(uB2>0)a.uB2=anLine(uB2,'rgba(234,88,12,.5)',[4,4],{content:'B2↑ '+f1(uB2)+'°C',position:'end',yAdjust:32,backgroundColor:'rgba(255,237,213,.95)',color:'#7c2d12'});if(lB2>0)a.lB2=anLine(lB2,'rgba(8,145,178,.5)',[4,4],{content:'B2↓ '+f1(lB2)+'°C',position:'end',yAdjust:48,backgroundColor:'rgba(236,254,255,.95)',color:'#164e63'});}
+  return a;
+}
+function buildHumAnn(bv,aB1,aB2){
+  var a={};
+  if(bv!=='b2')a.avgB1=anLine(aB1,'rgba(217,119,6,.9)',[7,4],{content:'Avg B1: '+f2(aB1),position:'start',yAdjust:0,backgroundColor:'rgba(255,251,235,.95)',color:'#92400e'});
+  if(bv!=='b1')a.avgB2=anLine(aB2,'rgba(37,99,235,.9)',[7,4],{content:'Avg B2: '+f2(aB2),position:'start',yAdjust:20,backgroundColor:'rgba(239,246,255,.95)',color:'#1e40af'});
+  return a;
+}
+
+// ── CHART ────────────────────────────────────────────────────
+function mkOpts(anns){
+  return{responsive:true,maintainAspectRatio:false,animation:{duration:0},interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2740',titleColor:'#94a3b8',bodyColor:'#e2e8f0',borderColor:'#334155',borderWidth:1,padding:10,titleFont:{family:"'IBM Plex Mono',monospace",size:11},bodyFont:{family:"'IBM Plex Mono',monospace",size:11},callbacks:{label:function(ctx){return ' '+ctx.dataset.label+': '+ctx.parsed.y;}}},annotation:{annotations:anns||{}}},
+    scales:{x:{ticks:{color:'#94a3b8',font:{size:9,family:"'IBM Plex Mono',monospace"},maxRotation:45,maxTicksLimit:14},grid:{color:'rgba(203,213,225,.4)'}},y:{ticks:{color:'#94a3b8',font:{size:10,family:"'IBM Plex Mono',monospace"}},grid:{color:'rgba(203,213,225,.4)'}}}
+  };
+}
+
+function mkDs(vals,statArr,onC,offC,label){
+  var big=vals.length>300;
+  return{label:label,data:vals,borderWidth:big?1:2,pointRadius:big?0:2.5,pointHoverRadius:5,tension:0.3,fill:false,segment:{borderColor:segFn(statArr,onC,offC)},borderColor:onC};
+}
+
+function renderChart(key,canvasId,labels,datasets,anns){
+  if(CH[key]){CH[key].data.labels=labels;CH[key].data.datasets=datasets;CH[key].options.plugins.annotation.annotations=anns;CH[key].update('none');}
+  else{var ctx=document.getElementById(canvasId).getContext('2d');CH[key]=new Chart(ctx,{type:'line',data:{labels:labels,datasets:datasets},options:mkOpts(anns)});}
+}
+
+// ── RENDER ───────────────────────────────────────────────────
+function renderView(){
+  if(!S.hasData) return;
+  var data=S.filteredData,n=data.length;
+  if(!n){updateZoomUI();return;}
+  var s=Math.max(0,Math.min(S.viewStart,n-1));
+  var cnt=Math.min(S.viewCount,n-s);
+  var view=data.slice(s,s+cnt);
+  var b1sv=S.b1sFilt.slice(s,s+cnt);
+  var b2sv=S.b2sFilt.slice(s,s+cnt);
+  var bv=S.burnerView;
+
+  updateCards(view);updateZoomUI();
+
+  var labels=view.map(function(d){return d.label;});
+  var b1T=view.map(function(d){return d.b1_temp;});
+  var b2T=view.map(function(d){return d.b2_temp;});
+  var b1H=view.map(function(d){return d.b1_hum;});
+  var b2H=view.map(function(d){return d.b2_hum;});
+  var b1U=view.map(function(d){return d.b1_upper;});
+  var b1L=view.map(function(d){return d.b1_lower;});
+  var b2U=view.map(function(d){return d.b2_upper;});
+  var b2L=view.map(function(d){return d.b2_lower;});
+
+  var aB1T=avg(b1T),aB2T=avg(b2T),aB1H=avg(b1H),aB2H=avg(b2H);
+  var aB1U=avg(b1U),aB1L=avg(b1L),aB2U=avg(b2U),aB2L=avg(b2L);
+
+  if(bv!=='b2'){document.getElementById('b1TRange').textContent=f1(Math.min.apply(null,b1T))+' → '+f1(Math.max.apply(null,b1T))+' °C';document.getElementById('b1HStat').textContent=f2(aB1H);}
+  if(bv!=='b1'){document.getElementById('b2TRange').textContent=f1(Math.min.apply(null,b2T))+' → '+f1(Math.max.apply(null,b2T))+' °C';document.getElementById('b2HStat').textContent=f2(aB2H);}
+
+  var tempDS=[],humDS=[];
+  if(bv!=='b2'){tempDS.push(mkDs(b1T,b1sv,'#dc2626','#16a34a','B1 Suhu (°C)'));humDS.push(mkDs(b1H,b1sv,'#dc2626','#16a34a','B1 Humidity'));}
+  if(bv!=='b1'){tempDS.push(mkDs(b2T,b2sv,'#ea6800','#0891b2','B2 Suhu (°C)'));humDS.push(mkDs(b2H,b2sv,'#ea6800','#0891b2','B2 Humidity'));}
+
+  renderChart('temp','chartTemp',labels,tempDS,buildTempAnn(bv,aB1T,aB2T,aB1U,aB1L,aB2U,aB2L));
+  renderChart('hum','chartHum',labels,humDS,buildHumAnn(bv,aB1H,aB2H));
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+setType('both');
+</script>
+</body>
+</html>
